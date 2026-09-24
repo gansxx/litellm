@@ -1,0 +1,15 @@
+FROM docker.io/tailscale/tailscale:stable@sha256:2667499ed87ae29218f292556ba062918402dd5e92e93637af14867e4df12dd3 AS tailscale
+
+FROM docker.litellm.ai/berriai/litellm:main-stable@sha256:87f34979b9f8cb274fac90ca8a4fdda07d8480de22755562a26adeb95ce20d02
+
+COPY --from=tailscale /usr/local/bin/tailscale /app/tailscale
+COPY --from=tailscale /usr/local/bin/tailscaled /app/tailscaled
+COPY docker/tailscale_local_entrypoint.sh /app/docker/tailscale_local_entrypoint.sh
+
+RUN mkdir -p /var/run/tailscale /var/cache/tailscale /var/lib/tailscale && \
+    /app/.venv/bin/python -m ensurepip --upgrade && \
+    /app/.venv/bin/python -m pip install --no-cache-dir socksio==1.0.0 && \
+    chmod 0755 /app/docker/tailscale_local_entrypoint.sh
+
+ENTRYPOINT ["/app/docker/tailscale_local_entrypoint.sh"]
+CMD ["--port", "4000"]
