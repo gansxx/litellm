@@ -10,7 +10,13 @@ from fastapi.testclient import TestClient
 
 
 
-from litellm.proxy.db.prisma_client import PrismaManager, PrismaWrapper, should_update_prisma_schema
+from litellm.proxy.db.prisma_client import (
+    LITELLM_DATABASE_SCHEMA_ENV_VAR,
+    PrismaManager,
+    PrismaWrapper,
+    configure_litellm_database_schema,
+    should_update_prisma_schema,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -41,6 +47,31 @@ def test_should_update_prisma_schema(monkeypatch):
 
     monkeypatch.setenv("DISABLE_SCHEMA_UPDATE", None)  # Set env var opposite to param
     assert should_update_prisma_schema(False) == True  # Param False -> should update
+
+
+def test_configure_litellm_database_schema_creates_and_selects_schema(monkeypatch):
+    cursor = MagicMock()
+    connection = MagicMock()
+    connection.cursor.return_value.__enter__.return_value = cursor
+    connect = MagicMock()
+    connect.return_value.__enter__.return_value = connection
+    psycopg_module = MagicMock()
+    psycopg_module.connect = connect
+
+    monkeypatch.setitem(sys.modules, "psycopg", psycopg_module)
+    monkeypatch.setenv(LITELLM_DATABASE_SCHEMA_ENV_VAR, "litellm")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:password@localhost:5432/database?sslmode=require")
+    monkeypatch.setenv("DIRECT_URL", "postgresql://user:password@localhost:5432/database")
+
+    configure_litellm_database_schema()
+
+    connect.assert_called_once_with("postgresql://user:password@localhost:5432/database?sslmode=require")
+    cursor.execute.assert_called_once_with("CREATE SCHEMA IF NOT EXISTS litellm")
+    assert (
+        os.environ["DATABASE_URL"]
+        == "postgresql://user:password@localhost:5432/database?sslmode=require&schema=litellm"
+    )
+    assert os.environ["DIRECT_URL"] == "postgresql://user:password@localhost:5432/database?schema=litellm"
 
 
 @pytest.mark.asyncio

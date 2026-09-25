@@ -6,6 +6,7 @@ database token (AWS RDS IAM or Microsoft Entra ID) fresh.
 import asyncio
 import os
 import random
+import re
 import signal
 import subprocess
 import time
@@ -35,6 +36,7 @@ __all__ = (
     "IAMEndpoint",
     "PrismaManager",
     "PrismaWrapper",
+    "configure_litellm_database_schema",
     "parse_iam_endpoint_from_url",
 )
 
@@ -869,6 +871,47 @@ class PrismaWrapper:
                         raise ValueError(f"Failed to get {self.token_label}")
 
         return original_attr
+
+
+LITELLM_DATABASE_SCHEMA_ENV_VAR: Final = "LITELLM_DATABASE_SCHEMA"
+
+
+def _replace_database_url_schema(database_url: str, schema: str | None) -> str:
+    parsed_url: Final = urllib.parse.urlsplit(database_url)
+    query_items: Final = tuple(
+        (key, value)
+        for key, value in urllib.parse.parse_qsl(parsed_url.query, keep_blank_values=True)
+        if key != "schema"
+    )
+    updated_query_items: Final = (*query_items, ("schema", schema)) if schema is not None else query_items
+    return urllib.parse.urlunsplit((*parsed_url[:3], urllib.parse.urlencode(updated_query_items), parsed_url.fragment))
+
+
+def configure_litellm_database_schema() -> None:
+    schema: Final[str | None] = os.getenv(LITELLM_DATABASE_SCHEMA_ENV_VAR)
+    if schema is None:
+        return
+    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", schema) is None:
+        raise RuntimeError(f"{LITELLM_DATABASE_SCHEMA_ENV_VAR} must be a PostgreSQL identifier")
+
+    database_url: Final[str | None] = os.getenv("DATABASE_URL")
+    if database_url is None:
+        return
+
+    connection_url: Final = _replace_database_url_schema(database_url, schema=None)
+    try:
+        import psycopg
+
+        with psycopg.connect(connection_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")
+    except ImportError as e:
+        raise RuntimeError("LITELLM_DATABASE_SCHEMA requires psycopg") from e
+
+    os.environ["DATABASE_URL"] = _replace_database_url_schema(database_url, schema=schema)
+    direct_url: Final[str | None] = os.getenv("DIRECT_URL")
+    if direct_url is not None:
+        os.environ["DIRECT_URL"] = _replace_database_url_schema(direct_url, schema=schema)
 
 
 class PrismaManager:

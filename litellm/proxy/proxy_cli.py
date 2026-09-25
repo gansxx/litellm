@@ -1260,6 +1260,10 @@ def run_server(
             db_connection_pool_limit = LiteLLMDatabaseConnectionPool.database_connection_pool_limit.value
             db_connection_timeout = LiteLLMDatabaseConnectionPool.database_connection_pool_timeout.value
 
+        from litellm.proxy.db.prisma_client import configure_litellm_database_schema
+
+        configure_litellm_database_schema()
+
         if os.getenv("DATABASE_URL", None) is not None or os.getenv("DIRECT_URL", None) is not None:
             from litellm.proxy.db.db_url_settings import (
                 DISABLE_PREPARED_STATEMENTS_ENV_VAR,
