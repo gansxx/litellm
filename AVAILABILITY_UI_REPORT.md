@@ -55,7 +55,24 @@ npm run lint -- src/components/model_dashboard/healthAvailability.ts src/compone
 passed
 ```
 
-完整 UI 镜像构建未完成，因为 Next.js 在构建期间无法从 `fonts.googleapis.com` 下载 Inter 字体。失败位置是项目既有的 `next/font` 依赖，不是本次新增的 UI、nginx 或可用性代码
+## 三容器网关验证
+
+`docker-compose.yml` 保持不变。新的 `docker-compose-ui-gateway.yaml` 使用独立 Compose 项目 `litellm-ui-gateway`，包含 `litellm`、`ui` 和 `nginx` 三个服务。UI 容器仅提供静态文件，nginx 容器是唯一对宿主机开放的入口，并映射 `4000:4000`
+
+已停止 `docker-compose-local-schema.yaml` 的旧栈，再启动新栈。实际验证结果如下：
+
+```text
+litellm  healthy
+ui       healthy
+nginx    healthy
+
+GET /healthz                                  -> 200
+GET /ui/                                      -> 200
+GET /litellm/.well-known/litellm-ui-config    -> 200
+GET /health/liveliness                        -> 200
+```
+
+UI 构建已改为不在构建期请求 Google Fonts，因此当前源码可成功构建并用于上述三容器验证
 
 ## 调研参考
 

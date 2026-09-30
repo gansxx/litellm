@@ -23,8 +23,7 @@ services:
       # DATABASE_URL_READ_REPLICA: "postgresql://llmproxy:dbpassword9090@db-reader:5432/litellm"
       STORE_MODEL_IN_DB: "True" # allows adding models to proxy via UI
     env_file:
-      - path: .env
-        required: false
+      - .env # Load local .env file
     depends_on:
       - db  # Indicates that this service depends on the 'db' service, ensuring 'db' starts first
     healthcheck:  # Defines the health check configuration for the container
@@ -35,23 +34,6 @@ services:
       timeout: 10s   # Health check command times out after 10 seconds
       retries: 3     # Retry up to 3 times if health check fails
       start_period: 40s  # Wait 40 seconds after container start before beginning health checks
-
-  ui:
-    build:
-      context: .
-      dockerfile: ui/Dockerfile
-    image: docker.litellm.ai/berriai/litellm-ui:main-stable
-    ports:
-      - "3000:3000"
-    depends_on:
-      litellm:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/healthz >/dev/null"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
 
   db:
     image: postgres:16

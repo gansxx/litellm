@@ -3,7 +3,6 @@
 # UI container — Next.js static export served by nginx.
 
 ARG UI_BUILD_IMAGE=node:24.19-alpine3.24@sha256:d32cdf619f63fe0471182d08996dd516c6275bb5fd31ae06e55a570bd9e1ad43
-ARG NGINX_VERSION=1.31.5-alpine3.24@sha256:34f40471dea485273c5e2a04dd5e97a682332ceb4a9adecd67de450dcb2fb390
 
 # ---------- builder ----------
 FROM ${UI_BUILD_IMAGE} AS builder
@@ -24,19 +23,12 @@ COPY ui/litellm-dashboard/ ./
 RUN npm run build
 
 # ---------- runtime ----------
-FROM nginx:${NGINX_VERSION} AS runtime
+FROM ${UI_BUILD_IMAGE} AS runtime
 
-# Drop the upstream default :80 server; we own the config.
-RUN rm -f /etc/nginx/conf.d/default.conf
-
-# Static export → web root.
-COPY --from=builder /app/out /usr/share/nginx/html
-
-# Routing rules — see ui/nginx.conf for the full description.
-COPY ui/nginx.conf /etc/nginx/nginx.conf
+WORKDIR /app
+COPY --from=builder /app/out ./out
+COPY ui/server.mjs ./server.mjs
 
 EXPOSE 3000/tcp
 
-# nginx as PID 1 in foreground; respects SIGTERM out of the box, so
-# no tini/dumb-init wrapper needed.
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["node", "server.mjs"]

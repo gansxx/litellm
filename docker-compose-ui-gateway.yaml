@@ -1,0 +1,55 @@
+name: litellm-ui-gateway
+
+services:
+  litellm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        target: runtime
+    image: litellm-ui-gateway-proxy
+    env_file:
+      - .env.local
+    environment:
+      LITELLM_DATABASE_SCHEMA: litellm
+      ENFORCE_PRISMA_MIGRATION_CHECK: "true"
+      STORE_MODEL_IN_DB: "True"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:4000/health/liveliness')"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  ui:
+    build:
+      context: .
+      dockerfile: ui/Dockerfile
+    image: litellm-ui-gateway-ui
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/healthz').then((response) => process.exit(response.ok ? 0 : 1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    image: litellm-ui-gateway-nginx
+    ports:
+      - "4000:4000"
+    depends_on:
+      litellm:
+        condition: service_healthy
+      ui:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/healthz >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
