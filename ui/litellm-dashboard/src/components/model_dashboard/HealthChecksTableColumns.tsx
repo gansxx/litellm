@@ -33,6 +33,9 @@ export interface HealthCheckData {
   health_loading: boolean;
   health_error?: string;
   health_full_error?: string;
+  availability_percent: number | null;
+  average_latency_ms: number | null;
+  peak_latency_ms: number | null;
 }
 
 const HEALTH_STATUS_TONES: Record<string, StatusTone> = {
@@ -157,6 +160,14 @@ function compareDatesDesc(rawA: string, rawB: string): number {
     return -1;
   }
   return dateB - dateA;
+}
+
+function formatPercent(value: number | null): string {
+  return value === null ? "No data" : `${value.toFixed(1)}%`;
+}
+
+function formatLatency(value: number | null): string {
+  return value === null ? "No data" : `${value.toFixed(1)} ms`;
 }
 
 /**
@@ -358,6 +369,33 @@ export const getHealthChecksTableColumns = ({
         </div>
       );
     },
+  },
+  {
+    id: "availability_percent",
+    accessorKey: "availability_percent",
+    meta: { title: "Availability" },
+    header: ({ column }) => <DataTableSortHeader column={column} title="Availability" variant="header-cycle" />,
+    size: 130,
+    enableSorting: true,
+    cell: ({ row }) => <span className="text-sm text-muted-foreground">{formatPercent(row.original.availability_percent)}</span>,
+  },
+  {
+    id: "average_latency_ms",
+    accessorKey: "average_latency_ms",
+    meta: { title: "Average Latency" },
+    header: ({ column }) => <DataTableSortHeader column={column} title="Average Latency" variant="header-cycle" />,
+    size: 150,
+    enableSorting: true,
+    cell: ({ row }) => <span className="text-sm text-muted-foreground">{formatLatency(row.original.average_latency_ms)}</span>,
+  },
+  {
+    id: "peak_latency_ms",
+    accessorKey: "peak_latency_ms",
+    meta: { title: "Peak Latency" },
+    header: ({ column }) => <DataTableSortHeader column={column} title="Peak Latency" variant="header-cycle" />,
+    size: 140,
+    enableSorting: true,
+    cell: ({ row }) => <span className="text-sm text-muted-foreground">{formatLatency(row.original.peak_latency_ms)}</span>,
   },
   {
     id: "last_check",

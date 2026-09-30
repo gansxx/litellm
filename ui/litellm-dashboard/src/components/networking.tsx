@@ -3607,6 +3607,15 @@ export const latestHealthChecksCall = async (accessToken: string) => {
   }
 };
 
+export const healthCheckHistoryCall = async (accessToken: string) => {
+  return apiClient.get<{
+    health_checks: Array<{ model_id?: string | null; status?: string | null; response_time_ms?: number | null }>;
+  }>(`/health/history`, {
+    accessToken,
+    query: { limit: 1000 },
+  });
+};
+
 export const getProxyUISettings = async (accessToken: string) => {
   /**
    * Get all the models user has access to

@@ -13,9 +13,10 @@ import {
 import { errorPatterns } from "@/utils/errorPatterns";
 
 import { Team } from "../key_team_helpers/key_list";
-import { individualModelHealthCheckCall, latestHealthChecksCall } from "../networking";
+import { healthCheckHistoryCall, individualModelHealthCheckCall, latestHealthChecksCall } from "../networking";
 import { HealthChecksTable } from "./HealthChecksTable";
 import type { HealthCheckData, HealthStatus } from "./HealthChecksTableColumns";
+import { calculateAvailabilityMetrics, type AvailabilityMetrics } from "./healthAvailability";
 
 interface LatestHealthCheck {
   status?: string;
@@ -168,6 +169,7 @@ const HealthCheckComponent: React.FC<HealthCheckComponentProps> = ({
   rowCount,
 }) => {
   const [modelHealthStatuses, setModelHealthStatuses] = useState<{ [key: string]: HealthStatus }>({});
+  const [availabilityMetrics, setAvailabilityMetrics] = useState<Record<string, AvailabilityMetrics>>({});
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [errorModalVisible, setErrorModalVisible] = useState(false);
   const [selectedErrorDetails, setSelectedErrorDetails] = useState<{
@@ -236,6 +238,13 @@ const HealthCheckComponent: React.FC<HealthCheckComponentProps> = ({
         }
       } catch (healthError) {
         console.warn("Failed to load health check history (using default states):", healthError);
+      }
+
+      try {
+        const healthHistory = await healthCheckHistoryCall(accessToken);
+        setAvailabilityMetrics(calculateAvailabilityMetrics(healthHistory.health_checks));
+      } catch (healthError) {
+        console.warn("Failed to load availability metrics (using empty metrics):", healthError);
       }
 
       setModelHealthStatuses(healthStatusMap);
@@ -488,9 +497,12 @@ const HealthCheckComponent: React.FC<HealthCheckComponentProps> = ({
           health_loading: status.loading,
           health_error: status.error,
           health_full_error: status.fullError,
+          availability_percent: availabilityMetrics[modelId]?.availabilityPercent ?? null,
+          average_latency_ms: availabilityMetrics[modelId]?.averageLatencyMs ?? null,
+          peak_latency_ms: availabilityMetrics[modelId]?.peakLatencyMs ?? null,
         };
       }),
-    [modelData, modelHealthStatuses],
+    [availabilityMetrics, modelData, modelHealthStatuses],
   );
 
   const isPartialSelection = selectedModelIds.length > 0 && selectedModelIds.length < all_models_on_proxy.length;
@@ -503,7 +515,7 @@ const HealthCheckComponent: React.FC<HealthCheckComponentProps> = ({
           <div>
             <h2 className="text-lg font-semibold text-foreground">Model Health Status</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Run health checks on individual models to verify they are working correctly
+              Background checks probe configured endpoints. Availability and latency use recorded health-check history.
             </p>
           </div>
           <div className="flex items-center gap-3">

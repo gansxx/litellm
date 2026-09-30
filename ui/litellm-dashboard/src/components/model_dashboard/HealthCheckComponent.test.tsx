@@ -9,10 +9,12 @@ import HealthCheckComponent from "./HealthCheckComponent";
 
 const mockIndividualModelHealthCheckCall = vi.fn();
 const mockLatestHealthChecksCall = vi.fn();
+const mockHealthCheckHistoryCall = vi.fn();
 
 vi.mock("../networking", () => ({
   individualModelHealthCheckCall: (...args: unknown[]) => mockIndividualModelHealthCheckCall(...args),
   latestHealthChecksCall: (...args: unknown[]) => mockLatestHealthChecksCall(...args),
+  healthCheckHistoryCall: (...args: unknown[]) => mockHealthCheckHistoryCall(...args),
 }));
 
 const getDisplayModelName = (model: { model_name?: string }) => model.model_name ?? "";
@@ -69,6 +71,7 @@ describe("HealthCheckComponent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockLatestHealthChecksCall.mockResolvedValue({ latest_health_checks: {} });
+    mockHealthCheckHistoryCall.mockResolvedValue({ health_checks: [] });
     mockIndividualModelHealthCheckCall.mockResolvedValue({
       healthy_count: 1,
       unhealthy_count: 0,
@@ -82,8 +85,24 @@ describe("HealthCheckComponent", () => {
 
     expect(screen.getByText("Model Health Status")).toBeInTheDocument();
     expect(
-      screen.getByText("Run health checks on individual models to verify they are working correctly"),
+      screen.getByText("Background checks probe configured endpoints. Availability and latency use recorded health-check history."),
     ).toBeInTheDocument();
+  });
+
+  it("shows recorded availability and latency metrics for a configured endpoint", async () => {
+    mockHealthCheckHistoryCall.mockResolvedValue({
+      health_checks: [
+        { model_id: "deployment-1", status: "healthy", response_time_ms: 10 },
+        { model_id: "deployment-1", status: "unhealthy", response_time_ms: 50 },
+        { model_id: "deployment-1", status: "healthy", response_time_ms: 30 },
+      ],
+    });
+
+    await renderHealthCheck({ modelData: { data: [makeModel("deployment-1")] }, allModelsOnProxy: ["deployment-1"] });
+
+    expect(screen.getByText("66.7%")).toBeInTheDocument();
+    expect(screen.getByText("30.0 ms")).toBeInTheDocument();
+    expect(screen.getByText("50.0 ms")).toBeInTheDocument();
   });
 
   it("should call individualModelHealthCheckCall with model id when run health check is triggered", async () => {
