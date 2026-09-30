@@ -19,6 +19,16 @@ const PROMPT_CACHING_TAB = "prompt_caching";
 const ENABLE_ANTHROPIC_PROMPT_CACHING = "enable_anthropic_prompt_caching";
 const ANTHROPIC_PROMPT_CACHING_TTL = "anthropic_prompt_caching_ttl";
 const OPENAI_SYSTEM_MESSAGES_FIRST = "openai_system_messages_first";
+const BACKGROUND_HEALTH_CHECKS = "background_health_checks";
+const HEALTH_CHECK_INTERVAL = "health_check_interval";
+const HEALTH_CHECK_CONCURRENCY = "health_check_concurrency";
+const BACKGROUND_HEALTH_CHECK_MODEL_GROUPS = "background_health_check_model_groups";
+const HEALTH_CHECK_FIELD_NAMES = new Set([
+  BACKGROUND_HEALTH_CHECKS,
+  HEALTH_CHECK_INTERVAL,
+  HEALTH_CHECK_CONCURRENCY,
+  BACKGROUND_HEALTH_CHECK_MODEL_GROUPS,
+]);
 
 const isOn = (value: unknown) => value === true || value === "true";
 
@@ -31,12 +41,12 @@ interface GeneralSettingsPageProps {
 export interface generalSettingsItem {
   field_name: string;
   field_type: string;
-  field_value: any;
+  field_value: unknown;
   field_description: string;
   stored_in_db: boolean | null;
   field_options?: string[] | null;
   field_tab?: string | null;
-  field_default_value?: any;
+  field_default_value?: unknown;
 }
 
 const NUMERIC_INPUT_WIDTH = "w-36";
@@ -55,15 +65,17 @@ const fromListValue = (value: unknown): string => (Array.isArray(value) ? value.
 
 const SettingValueEditor: React.FC<{
   setting: generalSettingsItem;
-  onChange: (fieldName: string, newValue: any) => void;
-}> = ({ setting, onChange }) => {
+  onChange: (fieldName: string, newValue: unknown) => void;
+  inputLabel?: string;
+}> = ({ setting, onChange, inputLabel }) => {
   if (setting.field_type === "Integer") {
     return (
       <Input
         type="number"
+        aria-label={inputLabel ?? setting.field_name}
         step={1}
         className={NUMERIC_INPUT_WIDTH}
-        value={setting.field_value ?? ""}
+        value={typeof setting.field_value === "number" ? setting.field_value : ""}
         onChange={(event) => onChange(setting.field_name, toNumericValue(event.target.value))}
       />
     );
@@ -72,6 +84,7 @@ const SettingValueEditor: React.FC<{
     return (
       <Switch
         checked={setting.field_value === true || setting.field_value === "true"}
+        aria-label={inputLabel ?? setting.field_name}
         onCheckedChange={(checked) => onChange(setting.field_name, checked)}
       />
     );
@@ -80,11 +93,12 @@ const SettingValueEditor: React.FC<{
     return (
       <Input
         type="number"
+        aria-label={inputLabel ?? setting.field_name}
         min={0}
         max={1}
         step={0.05}
         className={NUMERIC_INPUT_WIDTH}
-        value={setting.field_value ?? ""}
+        value={typeof setting.field_value === "number" ? setting.field_value : ""}
         onChange={(event) => onChange(setting.field_name, toNumericValue(event.target.value))}
       />
     );
@@ -95,9 +109,10 @@ const SettingValueEditor: React.FC<{
         <InputGroupAddon>$</InputGroupAddon>
         <InputGroupInput
           type="number"
+          aria-label={inputLabel ?? setting.field_name}
           min={0.01}
           step={0.25}
-          value={setting.field_value ?? ""}
+          value={typeof setting.field_value === "number" ? setting.field_value : ""}
           onChange={(event) => onChange(setting.field_name, toNumericValue(event.target.value))}
         />
       </InputGroup>
@@ -107,7 +122,7 @@ const SettingValueEditor: React.FC<{
     return (
       <Input
         key={String(setting.stored_in_db)}
-        aria-label={setting.field_name}
+        aria-label={inputLabel ?? setting.field_name}
         placeholder="Comma-separated values"
         defaultValue={fromListValue(setting.field_value)}
         onChange={(event) => onChange(setting.field_name, toListValue(event.target.value))}
@@ -137,7 +152,7 @@ const SettingValueEditor: React.FC<{
 export const PromptCachingPanel: React.FC<{
   accessToken: string;
   settings: generalSettingsItem[];
-  onChange: (fieldName: string, newValue: any) => void;
+  onChange: (fieldName: string, newValue: unknown) => void;
 }> = ({ accessToken, settings, onChange }) => {
   const enableSetting = settings.find((s) => s.field_name === ENABLE_ANTHROPIC_PROMPT_CACHING);
   const ttlSetting = settings.find((s) => s.field_name === ANTHROPIC_PROMPT_CACHING_TTL);
@@ -153,7 +168,7 @@ export const PromptCachingPanel: React.FC<{
 
   // Apply immediately: a toggle and a dropdown are direct controls, so there is
   // no separate Update button. Clearing the ttl resets it to the provider default.
-  const persist = (fieldName: string, value: any) => {
+  const persist = (fieldName: string, value: unknown) => {
     onChange(fieldName, value);
     if (value === "" || value === null || value === undefined) {
       deleteConfigFieldSetting(accessToken, fieldName);
@@ -219,6 +234,68 @@ export const PromptCachingPanel: React.FC<{
   );
 };
 
+const healthCheckFieldLabels: Record<string, string> = {
+  [BACKGROUND_HEALTH_CHECKS]: "Enable background health checks",
+  [HEALTH_CHECK_INTERVAL]: "Health check interval (seconds)",
+  [HEALTH_CHECK_CONCURRENCY]: "Health check concurrency",
+  [BACKGROUND_HEALTH_CHECK_MODEL_GROUPS]: "Model groups to test",
+};
+
+export const BackgroundHealthChecksPanel: React.FC<{
+  settings: generalSettingsItem[];
+  onChange: (fieldName: string, newValue: unknown) => void;
+  onUpdate: (fieldName: string) => void;
+  onReset: (fieldName: string) => void;
+}> = ({ settings, onChange, onUpdate, onReset }) => {
+  const healthCheckSettings = settings.filter((setting) => HEALTH_CHECK_FIELD_NAMES.has(setting.field_name));
+
+  if (healthCheckSettings.length === 0) {
+    return null;
+  }
+
+  return (
+    <Card>
+      <CardContent>
+        <CardTitle>Background Health Checks</CardTitle>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Schedule availability checks for configured model endpoints. Leave model groups empty to check every
+          configured model.
+        </p>
+        <div className="mt-6 space-y-6">
+          {healthCheckSettings.map((setting) => (
+            <div key={setting.field_name} className="flex items-start justify-between gap-8">
+              <div className="min-w-0 max-w-2xl">
+                <p className="font-medium">{healthCheckFieldLabels[setting.field_name]}</p>
+                <p className="mt-1 break-words text-xs text-muted-foreground">{setting.field_description}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <SettingValueEditor
+                  setting={setting}
+                  onChange={onChange}
+                  inputLabel={healthCheckFieldLabels[setting.field_name]}
+                />
+                <Button
+                  aria-label={`Save ${healthCheckFieldLabels[setting.field_name]}`}
+                  onClick={() => onUpdate(setting.field_name)}
+                >
+                  Save
+                </Button>
+                <Button
+                  aria-label={`Reset ${healthCheckFieldLabels[setting.field_name]}`}
+                  variant="outline"
+                  onClick={() => onReset(setting.field_name)}
+                >
+                  Reset
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
 const GeneralSettings: React.FC<GeneralSettingsPageProps> = ({ accessToken, userRole, userID }) => {
   const [generalSettings, setGeneralSettings] = useState<generalSettingsItem[]>([]);
 
@@ -232,7 +309,7 @@ const GeneralSettings: React.FC<GeneralSettingsPageProps> = ({ accessToken, user
     });
   }, [accessToken]);
 
-  const handleInputChange = (fieldName: string, newValue: any) => {
+  const handleInputChange = (fieldName: string, newValue: unknown) => {
     // Update the value in the state
     const updatedSettings = generalSettings.map((setting) =>
       setting.field_name === fieldName ? { ...setting, field_value: newValue } : setting,
@@ -249,7 +326,7 @@ const GeneralSettings: React.FC<GeneralSettingsPageProps> = ({ accessToken, user
     const fieldValue = setting?.field_value;
 
     if (fieldValue == null) {
-      if (setting?.field_type === "Select" || setting?.field_type === "List") handleResetField(fieldName);
+      handleResetField(fieldName);
       return;
     }
     try {
@@ -297,6 +374,7 @@ const GeneralSettings: React.FC<GeneralSettingsPageProps> = ({ accessToken, user
           <TabsTrigger value="routing-groups">Routing Groups</TabsTrigger>
           <TabsTrigger value="fallbacks">Fallbacks</TabsTrigger>
           <TabsTrigger value="prompt-caching">Prompt Caching</TabsTrigger>
+          <TabsTrigger value="health-checks">Health Checks</TabsTrigger>
           <TabsTrigger value="general">General</TabsTrigger>
         </TabsList>
         <TabsContent value="loadbalancing" className="px-8 py-6" keepMounted>
@@ -310,6 +388,14 @@ const GeneralSettings: React.FC<GeneralSettingsPageProps> = ({ accessToken, user
         </TabsContent>
         <TabsContent value="prompt-caching" className="px-8 py-6" keepMounted>
           <PromptCachingPanel accessToken={accessToken} settings={generalSettings} onChange={handleInputChange} />
+        </TabsContent>
+        <TabsContent value="health-checks" className="px-8 py-6" keepMounted>
+          <BackgroundHealthChecksPanel
+            settings={generalSettings}
+            onChange={handleInputChange}
+            onUpdate={handleUpdateField}
+            onReset={handleResetField}
+          />
         </TabsContent>
         <TabsContent value="general" className="px-8 py-6" keepMounted>
           <Card>
@@ -325,7 +411,12 @@ const GeneralSettings: React.FC<GeneralSettingsPageProps> = ({ accessToken, user
                 </TableHeader>
                 <TableBody>
                   {generalSettings
-                    .filter((value) => value.field_type !== "TypedDictionary" && value.field_tab !== PROMPT_CACHING_TAB)
+                    .filter(
+                      (value) =>
+                        value.field_type !== "TypedDictionary" &&
+                        value.field_tab !== PROMPT_CACHING_TAB &&
+                        !HEALTH_CHECK_FIELD_NAMES.has(value.field_name),
+                    )
                     .map((value, index) => (
                       <TableRow key={index}>
                         <TableCell className="whitespace-normal">

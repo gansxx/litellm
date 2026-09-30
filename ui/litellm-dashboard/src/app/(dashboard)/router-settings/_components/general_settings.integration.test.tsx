@@ -62,6 +62,38 @@ const SETTINGS_FIXTURE = [
     stored_in_db: true,
     field_default_value: 1.0,
   },
+  {
+    field_name: "background_health_checks",
+    field_type: "Boolean",
+    field_value: false,
+    field_description: "run availability checks in the background",
+    stored_in_db: true,
+    field_default_value: false,
+  },
+  {
+    field_name: "health_check_interval",
+    field_type: "Integer",
+    field_value: 300,
+    field_description: "background health check interval in seconds",
+    stored_in_db: true,
+    field_default_value: 300,
+  },
+  {
+    field_name: "health_check_concurrency",
+    field_type: "Integer",
+    field_value: null,
+    field_description: "maximum concurrent health checks",
+    stored_in_db: null,
+    field_default_value: null,
+  },
+  {
+    field_name: "background_health_check_model_groups",
+    field_type: "List",
+    field_value: ["old-model"],
+    field_description: "model_name groups to probe",
+    stored_in_db: true,
+    field_default_value: null,
+  },
 ];
 
 const settingsRow = async (fieldName: string) => {
@@ -143,6 +175,53 @@ describe("GeneralSettings Prompt Caching tab", () => {
   });
 });
 
+describe("GeneralSettings Health Checks tab", () => {
+  beforeEach(() => {
+    vi.mocked(getGeneralSettingsCall).mockResolvedValue([...SETTINGS_FIXTURE.map((s) => ({ ...s }))]);
+    vi.mocked(updateConfigFieldSetting).mockClear();
+    vi.mocked(deleteConfigFieldSetting).mockClear();
+  });
+
+  it("saves background health check scheduling and scoped model groups", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<GeneralSettings accessToken="token" userRole="Admin" userID="user" />);
+
+    await user.click(await screen.findByRole("tab", { name: "Health Checks" }));
+    await user.click(screen.getByRole("switch", { name: "Enable background health checks" }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Health check interval (seconds)" }), {
+      target: { value: "60" },
+    });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Health check concurrency" }), { target: { value: "5" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Model groups to test" }), {
+      target: { value: " monitored-model, fallback-model ,, " },
+    });
+
+    await user.click(screen.getByRole("button", { name: "Save Enable background health checks" }));
+    await user.click(screen.getByRole("button", { name: "Save Health check interval (seconds)" }));
+    await user.click(screen.getByRole("button", { name: "Save Health check concurrency" }));
+    await user.click(screen.getByRole("button", { name: "Save Model groups to test" }));
+
+    expect(vi.mocked(updateConfigFieldSetting).mock.calls).toEqual([
+      ["token", "background_health_checks", true],
+      ["token", "health_check_interval", 60],
+      ["token", "health_check_concurrency", 5],
+      ["token", "background_health_check_model_groups", ["monitored-model", "fallback-model"]],
+    ]);
+  });
+
+  it("resets an empty model group list so all configured models are checked", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<GeneralSettings accessToken="token" userRole="Admin" userID="user" />);
+
+    await user.click(await screen.findByRole("tab", { name: "Health Checks" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Model groups to test" }), { target: { value: " " } });
+    await user.click(screen.getByRole("button", { name: "Save Model groups to test" }));
+
+    expect(deleteConfigFieldSetting).toHaveBeenCalledWith("token", "background_health_check_model_groups");
+    expect(updateConfigFieldSetting).not.toHaveBeenCalled();
+  });
+});
+
 // The five tabs here are proxy-wide settings. Auto-routers moved to Models + Endpoints.
 describe("GeneralSettings tabs", () => {
   beforeEach(() => {
@@ -152,7 +231,7 @@ describe("GeneralSettings tabs", () => {
   it("renders the proxy-wide tabs and no auto-router tab", async () => {
     renderWithProviders(<GeneralSettings accessToken="token" userRole="proxy_admin" userID="u" />);
 
-    for (const name of ["Loadbalancing", "Routing Groups", "Fallbacks", "Prompt Caching", "General"]) {
+    for (const name of ["Loadbalancing", "Routing Groups", "Fallbacks", "Prompt Caching", "Health Checks", "General"]) {
       expect(await screen.findByRole("tab", { name })).toBeInTheDocument();
     }
     expect(screen.queryByRole("tab", { name: /auto.?router/i })).not.toBeInTheDocument();

@@ -14,6 +14,12 @@ Health Status 页面会读取 `/health/history` 中的已记录探测结果，�
 
 定时探测可通过 `general_settings.background_health_checks` 启用，并由 `health_check_interval` 以秒为单位配置间隔。`general_settings.background_health_check_model_groups` 可指定要测试的 `model_name` 组；未配置时会测试全部已配置模型端点。单个部署也可通过 `model_info.disable_background_health_check: true` 排除
 
+## UI 集中管理健康检查
+
+Router Settings 的 `Health Checks` 标签页集中管理原先需要写入 `general_settings` 的四项配置：后台健康检查开关、定时间隔（秒）、并发检查数和需要测试的模型组。每项均可单独保存或重置，保存会调用既有的 `/config/field/update` 接口，重置会调用 `/config/field/delete` 接口，因此无需继续编辑 YAML 即可统一管理
+
+模型组填写的是配置中 `model_list[].model_name` 的逗号分隔列表，例如 `monitored-model`。留空并保存会清除该配置，后台检查随即覆盖所有已配置模型组。Health Status 页面展示这些配置模型端点的可用率、平均延迟和峰值延迟，定时执行频率及覆盖范围均由本标签页可见并可修改的配置决定
+
 ## 配置示例
 
 ```yaml
@@ -57,6 +63,17 @@ npm run test:component -- src/components/model_dashboard/HealthCheckComponent.te
 
 npm run lint -- src/components/model_dashboard/healthAvailability.ts src/components/model_dashboard/healthAvailability.test.ts src/components/model_dashboard/HealthCheckComponent.tsx src/components/model_dashboard/HealthChecksTableColumns.tsx src/components/networking.tsx
 passed
+
+npm run test:integration -- src/app/(dashboard)/router-settings/_components/general_settings.integration.test.tsx
+10 tests passed
+
+docker compose -f docker-compose-ui-gateway.yaml build ui
+passed
+
+docker compose -f docker-compose-ui-gateway.yaml up -d --no-deps --force-recreate ui
+ui recreated and healthy
+GET /ui/ -> 200
+GET /healthz -> 200
 ```
 
 ## 三容器网关验证
