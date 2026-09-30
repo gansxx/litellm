@@ -17733,6 +17733,10 @@ _GENERAL_SETTINGS_CONFIG_LIST_FIELD_TYPES: Final[Mapping[str, str]] = MappingPro
         "apply_user_budget_to_team_keys": "Boolean",
         "user_api_key_cache_max_size": "Integer",
         "transcribe_media_buckets": "List",
+        "background_health_checks": "Boolean",
+        "health_check_interval": "Integer",
+        "health_check_concurrency": "Integer",
+        "background_health_check_model_groups": "List",
     }
 )
 

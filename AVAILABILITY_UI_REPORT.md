@@ -20,6 +20,8 @@ Router Settings 的 `Health Checks` 标签页集中管理原先需要写入 `gen
 
 模型组填写的是配置中 `model_list[].model_name` 的逗号分隔列表，例如 `monitored-model`。留空并保存会清除该配置，后台检查随即覆盖所有已配置模型组。Health Status 页面展示这些配置模型端点的可用率、平均延迟和峰值延迟，定时执行频率及覆盖范围均由本标签页可见并可修改的配置决定
 
+`/config/list` 的字段白名单现已包含四项健康检查配置，避免 Health Checks 标签页在未返回字段时显示空白。本地运行中的代理已实际返回这四项，类型分别为 Boolean、Integer、Integer 和 List
+
 ## 配置示例
 
 ```yaml

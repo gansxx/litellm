@@ -710,6 +710,43 @@ def test_config_list_exposes_config_reload_interval(client, auth_as, mock_prisma
     assert entry["field_default_value"] == 30
 
 
+def test_config_list_exposes_background_health_check_settings(client, auth_as, mock_prisma, monkeypatch):
+    """The Health Checks tab needs every scheduling field from /config/list."""
+    from litellm.proxy import proxy_server as ps
+    from litellm.proxy._types import LitellmUserRoles
+
+    table = _install_litellm_config(mock_prisma)
+    row = MagicMock()
+    row.param_value = {
+        "background_health_checks": True,
+        "health_check_interval": 60,
+        "health_check_concurrency": 5,
+        "background_health_check_model_groups": ["monitored-model"],
+    }
+    table.find_first = AsyncMock(return_value=row)
+    monkeypatch.setattr(ps, "prisma_client", mock_prisma)
+
+    with auth_as(LitellmUserRoles.PROXY_ADMIN):
+        response = client.get("/config/list", params={"config_type": "general_settings"})
+
+    assert response.status_code == 200
+    by_name = {entry["field_name"]: entry for entry in response.json()}
+    assert {
+        field_name: by_name[field_name]["field_type"]
+        for field_name in (
+            "background_health_checks",
+            "health_check_interval",
+            "health_check_concurrency",
+            "background_health_check_model_groups",
+        )
+    } == {
+        "background_health_checks": "Boolean",
+        "health_check_interval": "Integer",
+        "health_check_concurrency": "Integer",
+        "background_health_check_model_groups": "List",
+    }
+
+
 def test_config_field_update_accepts_config_reload_interval(client, auth_as, mock_prisma, monkeypatch):
     """POST /config/field/update accepts proxy_config_reload_interval_seconds and persists
     it to the DB general_settings row for all pods to pick up."""
