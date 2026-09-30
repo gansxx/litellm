@@ -2,15 +2,17 @@
 
 ## 实现结果
 
-代理镜像不再在构建阶段编译或复制 Admin UI 静态产物。`ui/Dockerfile` 负责构建独立 UI 镜像，默认 `docker-compose.yml` 新增 `ui` 服务并暴露 `3000` 端口。UI nginx 将 API 请求反向代理到 Compose 网络内的 `litellm:4000`，因此浏览器只需要访问 `http://localhost:3000/ui/`
+代理镜像不再在构建阶段编译或复制 Admin UI 静态产物。`ui/Dockerfile` 负责构建独立 UI 镜像，`docker-compose-ui-gateway.yaml` 将 UI、代理和 nginx 作为三个服务启动。nginx 是唯一对宿主机开放的入口，浏览器通过 `http://localhost:4000/ui/` 访问 UI
 
-模型健康状态页现在会读取 `/health/history` 中的已记录探测结果，并按部署 ID 展示以下数据：
+Health Status 页面会读取 `/health/history` 中的已记录探测结果，并按配置模型端点的部署 ID 展示以下数据：
 
 - Availability: 健康记录占全部记录的百分比
 - Average Latency: 有响应时间样本的算术平均值
 - Peak Latency: 有响应时间样本中的最大值
 
 探测仍由 LiteLLM 代理执行，UI 不保存也不接触供应商凭据。监控范围是 `model_list` 内配置的 LiteLLM 部署端点，不是任意 HTTP URL
+
+定时探测可通过 `general_settings.background_health_checks` 启用，并由 `health_check_interval` 以秒为单位配置间隔。`general_settings.background_health_check_model_groups` 可指定要测试的 `model_name` 组；未配置时会测试全部已配置模型端点。单个部署也可通过 `model_info.disable_background_health_check: true` 排除
 
 ## 配置示例
 
@@ -25,9 +27,11 @@ general_settings:
   background_health_checks: true
   health_check_interval: 60
   health_check_concurrency: 5
+  background_health_check_model_groups:
+    - monitored-model
 ```
 
-启动后访问 `http://localhost:3000/ui/?page=models`，打开 `Health Status` 标签页查看探测状态和统计数据
+启动后访问 `http://localhost:4000/ui/?page=models`，打开 `Health Status` 标签页查看探测状态、可用率、平均延迟和峰值延迟
 
 现有持久化策略会在状态变化时立即保存，并在状态稳定时至少每小时保存一次记录。统计结果因此代表已记录的探测历史，而不是每一个内存中的探测周期
 
