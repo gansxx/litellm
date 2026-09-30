@@ -74,6 +74,8 @@ GET /health/liveliness                        -> 200
 
 UI 构建已改为不在构建期请求 Google Fonts，因此当前源码可成功构建并用于上述三容器验证
 
+静态服务器会将 Next.js 的 `/litellm-asset-prefix/_next` 构建资源映射到实际的 `/_next` 文件树。已批量验证首页引用的全部 JS 和 CSS 资源均返回成功响应
+
 ## 调研参考
 
 [Uptime Kuma](https://github.com/louislam/uptime-kuma) 是自托管监控实现，参考了其按监视器聚合正常率和响应时间的看板模型

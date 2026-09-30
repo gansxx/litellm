@@ -16,7 +16,9 @@ const contentTypes = new Map([
 ]);
 
 const candidatesForPath = (pathname) => {
-  const uiPath = pathname === "/ui" || pathname === "/ui/" ? "/" : pathname.replace(/^\/ui\//, "/");
+  const uiPath = pathname
+    .replace(/^\/litellm-asset-prefix/, "")
+    .replace(/^\/ui(?:\/|$)/, "/");
   const relativePath = normalize(decodeURIComponent(uiPath)).replace(/^[/\\]+/, "");
   if (relativePath.startsWith("..") || relativePath.includes("\0")) return [];
   if (relativePath === "") return ["index.html"];
