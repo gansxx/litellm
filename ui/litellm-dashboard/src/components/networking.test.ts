@@ -86,6 +86,46 @@ describe("networking - expired session handling", () => {
   });
 });
 
+describe("gateway host configuration", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("loads the UI configuration from the configured gateway host", async () => {
+    vi.stubEnv("NEXT_PUBLIC_BASE_URL", "https://gateway.example.test");
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: vi.fn().mockResolvedValue({ proxy_base_url: "https://gateway.example.test", server_root_path: "" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.resetModules();
+
+    const { getUiConfig } = await import("./networking");
+    await getUiConfig();
+
+    expect(fetchMock).toHaveBeenCalledWith("https://gateway.example.test/litellm/.well-known/litellm-ui-config");
+  });
+
+  it("uses the runtime gateway host injected by the UI container", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: vi.fn().mockResolvedValue({ proxy_base_url: "https://gateway.runtime.test", server_root_path: "" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("window", {
+      __LITELLM_UI_GATEWAY_HOST__: "https://gateway.runtime.test",
+      localStorage: { getItem: () => null },
+      location: { origin: "https://ui.runtime.test" },
+    });
+    vi.resetModules();
+
+    const { getUiConfig } = await import("./networking");
+    await getUiConfig();
+
+    expect(fetchMock).toHaveBeenCalledWith("https://gateway.runtime.test/litellm/.well-known/litellm-ui-config");
+  });
+});
+
 describe("loginCall - storeLoginToken integration", () => {
   const originalFetch = global.fetch;
 

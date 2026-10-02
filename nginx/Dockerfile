@@ -4,7 +4,9 @@ ARG NGINX_IMAGE=nginx:1.31.5-alpine3.24@sha256:34f40471dea485273c5e2a04dd5e97a68
 
 FROM ${NGINX_IMAGE}
 
+ENV NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx
+
 RUN rm -f /etc/nginx/conf.d/default.conf
-COPY ui/nginx.conf /etc/nginx/nginx.conf
+COPY ui/nginx.conf.template /etc/nginx/templates/nginx.conf.template
 
 EXPOSE 4000/tcp

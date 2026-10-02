@@ -7,7 +7,10 @@ ARG UI_BUILD_IMAGE=node:24.19-alpine3.24@sha256:d32cdf619f63fe0471182d08996dd516
 # ---------- builder ----------
 FROM ${UI_BUILD_IMAGE} AS builder
 
+ARG GATEWAY_HOST
+
 ENV NEXT_TELEMETRY_DISABLED=1 \
+    NEXT_PUBLIC_BASE_URL=${GATEWAY_HOST} \
     npm_config_fund=false \
     npm_config_audit=false
 

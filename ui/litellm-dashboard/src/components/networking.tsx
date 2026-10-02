@@ -135,11 +135,19 @@ export { serverRootPath };
 export { deriveErrorMessage };
 
 const isLocal = process.env.NODE_ENV === "development";
+const runtimeGatewayHost = (): string | null => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const gatewayHost = (window as Window & { __LITELLM_UI_GATEWAY_HOST__?: unknown }).__LITELLM_UI_GATEWAY_HOST__;
+  return typeof gatewayHost === "string" && gatewayHost !== "" ? gatewayHost : null;
+};
+const configuredGatewayHost = runtimeGatewayHost() ?? process.env.NEXT_PUBLIC_BASE_URL;
 // In dev, if NEXT_PUBLIC_USE_REWRITES=true the Next.js dev server proxies API calls
 // to the backend — use relative URLs (null) so rewrites can intercept them.
 const resolveDefaultBase = (fallback: string | null): string | null =>
-  process.env.NEXT_PUBLIC_BASE_URL
-    ? process.env.NEXT_PUBLIC_BASE_URL
+  configuredGatewayHost
+    ? configuredGatewayHost
     : isLocal && process.env.NEXT_PUBLIC_USE_REWRITES !== "true"
       ? "http://localhost:4000"
       : fallback;

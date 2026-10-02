@@ -1,9 +1,10 @@
 import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { createServer } from "node:http";
 import { extname, normalize, resolve } from "node:path";
 
 const root = resolve("/app/out");
+const runtimeConfigScript = `<script>window.__LITELLM_UI_GATEWAY_HOST__=${JSON.stringify(process.env.GATEWAY_HOST ?? "").replace(/</g, "\\u003c")};</script>`;
 const contentTypes = new Map([
   [".css", "text/css; charset=utf-8"],
   [".html", "text/html; charset=utf-8"],
@@ -51,5 +52,9 @@ createServer(async (request, response) => {
     return;
   }
   response.writeHead(200, { "content-type": contentTypes.get(extname(filePath)) ?? "application/octet-stream" });
+  if (extname(filePath) === ".html") {
+    response.end((await readFile(filePath, "utf8")).replace("</head>", `${runtimeConfigScript}</head>`));
+    return;
+  }
   createReadStream(filePath).pipe(response);
 }).listen(3000, "0.0.0.0");

@@ -47,7 +47,7 @@ general_settings:
 
 已通过 `docker compose --env-file /dev/null config --quiet` 验证双容器 Compose 配置。`ui` 服务依赖代理健康检查，UI 自身使用 `/healthz` 健康检查
 
-已使用与 `ui/Dockerfile` 相同的固定 nginx 镜像、`ui/nginx.conf` 和已提交 UI 静态资源启动临时容器，执行结果如下：
+已使用与 `ui/Dockerfile` 相同的固定 nginx 镜像、`ui/nginx.conf.template` 和已提交 UI 静态资源启动临时容器，执行结果如下：
 
 ```text
 GET /healthz  -> ok
@@ -98,6 +98,16 @@ GET /health/liveliness                        -> 200
 UI 构建已改为不在构建期请求 Google Fonts，因此当前源码可成功构建并用于上述三容器验证
 
 静态服务器会将 Next.js 的 `/litellm-asset-prefix/_next` 构建资源映射到实际的 `/_next` 文件树。已批量验证首页引用的全部 JS 和 CSS 资源均返回成功响应
+
+## 跨主机部署
+
+`docker-compose-ui-gateway.yaml` 为 UI 和 LiteLLM 同时提供 `GATEWAY_HOST`。UI 静态服务器在响应 HTML 时注入该运行时值，浏览器据此调用网关 API。构建参数保留为没有运行时注入时的回退。LiteLLM 将它映射到 `PROXY_BASE_URL`，用于 UI 配置发现和对外 URL。它必须是浏览器可访问的完整 HTTP(S) 地址，例如 `https://gateway.example.test`
+
+网关容器通过运行时环境变量 `UI_HOST` 和 `LITELLM_HOST` 路由到上游，值为不带协议的 `host:port`，例如 `ui.internal.example.test:3000` 与 `litellm.internal.example.test:4000`。默认值保持为本地 Compose 服务名 `ui:3000` 和 `litellm:4000`
+
+因此三项服务可分别部署在不同机器。网关机器仅需能连通 UI_HOST 和 LITELLM_HOST，浏览器只访问 GATEWAY_HOST。UI 和 LiteLLM 的机器不需要加入网关的 Docker 网络。网关使用请求时 DNS 解析，因此独立启动时不依赖本地 UI 或 LiteLLM 容器
+
+已验证远程上游配置会生成 `http://ui.remote.test:3000` 和 `http://litellm.remote.test:4000` 的 nginx 代理规则，并通过 `nginx -t`。默认本地值下已重建网关容器，`GET /ui/` 与 `GET /healthz` 均返回 200。UI 网络配置单元测试验证 `GATEWAY_HOST` 编译为 `NEXT_PUBLIC_BASE_URL` 后，会向该网关地址请求 UI 配置
 
 ## 调研参考
 
