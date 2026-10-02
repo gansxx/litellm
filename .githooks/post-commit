@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "${LITELLM_SKIP_IMAGE_PUSH:-0}" = "1" ]; then
+  exit 0
+fi
+
+repo_root=$(git rev-parse --show-toplevel)
+exec "${repo_root}/scripts/push_ui_gateway_images.sh"
