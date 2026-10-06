@@ -14285,6 +14285,36 @@ class TestAllowedRoutesCallerPermission:
             )
         assert result is stub_response
 
+    def test_admin_generate_key_with_passthrough_routes_without_enterprise(self, monkeypatch: pytest.MonkeyPatch):
+        from litellm.proxy.management_endpoints.key_management_endpoints import prepare_metadata_fields
+
+        monkeypatch.setattr("litellm.proxy.proxy_server.premium_user", False)
+        data = GenerateKeyRequest(
+            key_alias="codex-key",
+            allowed_passthrough_routes=["/codex/*"],
+        )
+
+        result = prepare_metadata_fields(data, {}, {})
+
+        assert result["metadata"] == {"allowed_passthrough_routes": ["/codex/*"]}
+
+    def test_non_admin_generate_key_with_passthrough_routes_rejected(self):
+        data = GenerateKeyRequest(
+            key_alias="escalate",
+            allowed_passthrough_routes=["/codex/*"],
+        )
+        user_api_key_dict = UserAPIKeyAuth(
+            user_id="internal-user-123",
+            user_role=LitellmUserRoles.INTERNAL_USER,
+        )
+
+        from litellm.proxy.management_endpoints.common_utils import _check_passthrough_routes_caller_permission
+
+        with pytest.raises(HTTPException) as exc_info:
+            _check_passthrough_routes_caller_permission(data, user_api_key_dict)
+
+        assert exc_info.value.status_code == 403
+
     @pytest.mark.asyncio
     async def test_non_admin_generate_key_default_empty_allowed_routes_ok(self):
         """

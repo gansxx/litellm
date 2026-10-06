@@ -219,6 +219,7 @@ export const fetchUserModels = async (
 const CreateKey: React.FC<CreateKeyProps> = ({ team, teams, data, addKey, autoOpenCreate, prefillData }) => {
   const { accessToken, userId: userID, userRole, premiumUser } = useAuthorized();
   const canEditGuardrails = premiumUser || (userRole != null && rolesWithWriteAccess.includes(userRole));
+  const canEditPassThroughRoutes = userRole != null && isProxyAdminRole(userRole);
   const canViewPolicies = useCan("viewPolicies");
   const canViewPrompts = useCan("viewPrompts");
   const { data: organizations, isLoading: isOrganizationsLoading } = useOrganizations();
@@ -1451,9 +1452,9 @@ const CreateKey: React.FC<CreateKeyProps> = ({ team, teams, data, addKey, autoOp
                         name="allowed_passthrough_routes"
                         className="mt-4"
                         help={
-                          premiumUser
+                          canEditPassThroughRoutes
                             ? "Select existing pass through routes or enter new ones"
-                            : "Premium feature - Upgrade to set pass through routes by key"
+                            : "Only proxy admins can set pass through routes"
                         }
                       >
                         {(control) => (
@@ -1462,11 +1463,11 @@ const CreateKey: React.FC<CreateKeyProps> = ({ team, teams, data, addKey, autoOp
                             onChange={control.onChange}
                             accessToken={accessToken}
                             placeholder={
-                              !premiumUser
-                                ? "Premium feature - Upgrade to set pass through routes by key"
-                                : "Select or enter pass through routes"
+                              canEditPassThroughRoutes
+                                ? "Select or enter pass through routes"
+                                : "Only proxy admins can set pass through routes"
                             }
-                            disabled={!premiumUser}
+                            disabled={!canEditPassThroughRoutes}
                             teamId={selectedCreateKeyTeam ? selectedCreateKeyTeam.team_id : null}
                           />
                         )}

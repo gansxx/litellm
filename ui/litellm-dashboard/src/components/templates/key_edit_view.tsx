@@ -102,6 +102,7 @@ export function KeyEditView({
   const canViewPolicies = hasCapability(userRole, "viewPolicies");
   const canViewPrompts = hasCapability(userRole, "viewPrompts");
   const canEditEstimates = userRole != null && isProxyAdminRole(userRole);
+  const canEditPassThroughRoutes = userRole != null && isProxyAdminRole(userRole);
   const estimateTooltip = estimateTooltips(canEditEstimates);
   const form = useZodForm<KeyEditFormValues, KeyEditFormValues>(keyEditFormSchema, {
     defaultValues: toKeyEditFormValues(keyData),
@@ -365,9 +366,13 @@ export function KeyEditView({
       <form
         onSubmit={(event) => {
           moveMetadataTagsToTagsField(form);
-          return form.handleSubmit((values) =>
-            handleSubmit(toSubmittedValues(values, { canViewPolicies, canViewPrompts })),
-          )(event);
+          return form.handleSubmit((values) => {
+            const submittedValues = toSubmittedValues(values, { canViewPolicies, canViewPrompts });
+            if (!canEditPassThroughRoutes) {
+              delete submittedValues.allowed_passthrough_routes;
+            }
+            return handleSubmit(submittedValues);
+          })(event);
         }}
       >
         <FieldGroup>
@@ -712,12 +717,9 @@ export function KeyEditView({
             control={form.control}
             name="allowed_passthrough_routes"
             label={
-              premiumUser
+              canEditPassThroughRoutes
                 ? "Allowed Pass Through Routes"
-                : labelWithHint(
-                    "Allowed Pass Through Routes",
-                    "Setting allowed pass through routes by key is a premium feature",
-                  )
+                : labelWithHint("Allowed Pass Through Routes", "Only proxy admins can set allowed pass through routes")
             }
           >
             {({ value, onChange }) => (
@@ -725,13 +727,12 @@ export function KeyEditView({
                 value={value as string[] | undefined}
                 onChange={onChange}
                 accessToken={accessToken || ""}
-                placeholder={currentValuePlaceholder(
-                  premiumUser,
-                  keyData.metadata?.allowed_passthrough_routes,
-                  "Premium feature - Upgrade to set allowed pass through routes by key",
-                  "Select or enter allowed pass through routes",
-                )}
-                disabled={!premiumUser}
+                placeholder={
+                  canEditPassThroughRoutes
+                    ? "Select or enter allowed pass through routes"
+                    : "Only proxy admins can set allowed pass through routes"
+                }
+                disabled={!canEditPassThroughRoutes}
               />
             )}
           </FormField>
