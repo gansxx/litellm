@@ -848,7 +848,11 @@ def get_api_key(
         api_key = google_auth_key
     elif pass_through_endpoints is not None:
         for endpoint in pass_through_endpoints:
-            if endpoint.get("path", "") == route:
+            endpoint_path: Final[str] = endpoint.get("path", "")
+            route_matches: Final[bool] = endpoint_path == route or (
+                endpoint.get("include_subpath") is True and route.startswith(endpoint_path.rstrip("/") + "/")
+            )
+            if route_matches:
                 headers: dict | None = endpoint.get("headers", None)
                 if headers is not None:
                     header_key: str = headers.get("litellm_user_api_key", "")
@@ -876,7 +880,13 @@ async def check_api_key_for_custom_headers_or_pass_through_endpoints(
             api_key = request.headers.get("litellm_user_api_key") or ""
     if pass_through_endpoints is not None:
         for endpoint in pass_through_endpoints:
-            if isinstance(endpoint, dict) and endpoint.get("path", "") == route:
+            endpoint_path: Final[str] = endpoint.get("path", "") if isinstance(endpoint, dict) else ""
+            route_matches: Final[bool] = endpoint_path == route or (
+                isinstance(endpoint, dict)
+                and endpoint.get("include_subpath") is True
+                and route.startswith(endpoint_path.rstrip("/") + "/")
+            )
+            if isinstance(endpoint, dict) and route_matches:
                 ## IF AUTH DISABLED
                 # Default to True: a config dict with no ``auth`` key
                 # otherwise produced an unauthenticated forwarder. The
@@ -900,8 +910,8 @@ async def check_api_key_for_custom_headers_or_pass_through_endpoints(
                     headers = endpoint.get("headers", None)
                     if headers is not None:
                         header_key = headers.get("litellm_user_api_key", "")
-                        if isinstance(request.headers, dict) and request.headers.get(key=header_key) is not None:
-                            api_key = request.headers.get(key=header_key)
+                        if request.headers.get(header_key) is not None:
+                            api_key = request.headers.get(header_key)
     return api_key
 
 

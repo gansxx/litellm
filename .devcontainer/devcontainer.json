@@ -34,8 +34,11 @@
 	},
 	
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	"forwardPorts": [4000],
+	"forwardPorts": [4000, 4001],
 	"runArgs": ["--add-host=host.docker.internal:host-gateway"],
+	"mounts": [
+		"source=${localEnv:HOME}/.codex/auth.json,target=/root/.codex/auth.json,type=bind,readonly"
+	],
 	
 	"containerEnv": {
 		"LITELLM_LOG": "DEBUG"

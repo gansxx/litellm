@@ -563,6 +563,26 @@ def test_forward_headers_from_request_x_pass_prefix():
     assert "x-pass-custom-header" not in result
 
 
+def test_forward_headers_excludes_mapped_litellm_key_and_preserves_local_authorization():
+    from litellm.passthrough.utils import BasePassthroughUtils
+
+    result = BasePassthroughUtils.forward_headers_from_request(
+        request_headers={
+            "authorization": "Bearer local-upstream-credential",
+            "x-litellm-api-key": "sk-local-proxy-key",
+            "x-pass-x-litellm-api-key": "sk-local-proxy-key",
+            "content-type": "application/json",
+        },
+        headers={},
+        forward_headers=True,
+        exclude_headers=("x-litellm-api-key",),
+    )
+
+    assert result["authorization"] == "Bearer local-upstream-credential"
+    assert "x-litellm-api-key" not in result
+    assert "content-type" in result
+
+
 def test_forward_headers_from_request_protected_headers_not_overwritten():
     """
     Test that x-pass- headers whose stripped names resolve to credential or

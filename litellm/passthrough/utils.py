@@ -60,6 +60,7 @@ class BasePassthroughUtils:
         request_headers: dict,
         headers: dict,
         forward_headers: bool | None = False,
+        exclude_headers: tuple[str, ...] = (),
     ):
         """
         Helper to forward headers from original request.
@@ -68,6 +69,7 @@ class BasePassthroughUtils:
         with the prefix stripped, regardless of forward_headers setting.
         e.g., 'x-pass-anthropic-beta: value' becomes 'anthropic-beta: value'
         """
+        excluded_header_names: Final = {header_name.lower() for header_name in exclude_headers}
         if forward_headers is True:
             # Header We Should NOT forward
             request_headers.pop("content-length", None)
@@ -76,9 +78,17 @@ class BasePassthroughUtils:
             # the brotli package is absent relays undecodable bytes to the caller
             request_headers.pop("accept-encoding", None)
 
-            custom_header_names: Final = {header_name.lower() for header_name in headers}
+            custom_header_names: Final = {header_name.lower() for header_name in headers} | {
+                header_name.lower() for header_name in exclude_headers
+            }
             for header_name in list(request_headers.keys()):
-                if header_name.lower() in custom_header_names:
+                normalized_header_name: Final = header_name.lower()
+                forwarded_header_name: Final = (
+                    normalized_header_name[len(PASS_THROUGH_HEADER_PREFIX) :]
+                    if normalized_header_name.startswith(PASS_THROUGH_HEADER_PREFIX)
+                    else normalized_header_name
+                )
+                if normalized_header_name in custom_header_names or forwarded_header_name in excluded_header_names:
                     request_headers.pop(header_name, None)
 
             # Combine request headers with custom headers
@@ -90,6 +100,8 @@ class BasePassthroughUtils:
             if header_name.lower().startswith(PASS_THROUGH_HEADER_PREFIX):
                 # Strip the 'x-pass-' prefix and normalize to lowercase
                 actual_header_name = header_name[len(PASS_THROUGH_HEADER_PREFIX) :].lower()
+                if actual_header_name in excluded_header_names:
+                    continue
                 if actual_header_name in _PASS_THROUGH_PROTECTED_HEADERS or any(
                     actual_header_name.startswith(p) for p in _PASS_THROUGH_PROTECTED_HEADER_PREFIXES
                 ):

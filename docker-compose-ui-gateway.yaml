@@ -2,6 +2,8 @@ name: litellm-ui-gateway
 
 services:
   litellm:
+    ports:
+      - "4001:4000"
     build:
       context: .
       dockerfile: Dockerfile

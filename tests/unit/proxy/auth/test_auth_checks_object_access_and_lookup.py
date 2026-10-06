@@ -339,6 +339,27 @@ async def test_session_token_survives_langfuse_basic_auth_parsing(valid_sso_user
     assert ExperimentalUIJWTToken.get_key_object_from_ui_hash_key(session_token) is not None
 
 
+@pytest.mark.asyncio
+async def test_subpath_passthrough_auth_uses_mapped_litellm_key_header():
+    request = MagicMock()
+    request.headers = {"x-litellm-api-key": "sk-local-proxy-key"}
+
+    api_key = await check_api_key_for_custom_headers_or_pass_through_endpoints(
+        request=request,
+        route="/codex/responses",
+        pass_through_endpoints=[
+            {
+                "path": "/codex",
+                "include_subpath": True,
+                "headers": {"litellm_user_api_key": "x-litellm-api-key"},
+            }
+        ],
+        api_key="Bearer local-upstream-credential",
+    )
+
+    assert api_key == "sk-local-proxy-key"
+
+
 def test_get_key_object_from_ui_hash_key_invalid():
     """Test getting key object from invalid UI hash key"""
     # Test with invalid token

@@ -1085,11 +1085,19 @@ async def pass_through_request(
     #########################################################
     try:
         url = httpx.URL(target)
-        headers = custom_headers
+        caller_key_header: Final = custom_headers.get("litellm_user_api_key")
+        upstream_custom_headers: Final = {
+            name: value for name, value in custom_headers.items() if name.lower() != "litellm_user_api_key"
+        }
+        request_headers: Final = _safe_get_request_headers(request).copy()
+        caller_key_header_names: Final = (
+            (caller_key_header, "litellm_user_api_key") if isinstance(caller_key_header, str) else ("litellm_user_api_key",)
+        )
         headers = HttpPassThroughEndpointHelpers.forward_headers_from_request(
-            request_headers=_safe_get_request_headers(request).copy(),
-            headers=headers,
+            request_headers=request_headers,
+            headers=upstream_custom_headers,
             forward_headers=forward_headers,
+            exclude_headers=caller_key_header_names,
         )
         upstream_headers: Final = _with_trace_context(headers, parent_span=user_api_key_dict.parent_otel_span)
 
@@ -3705,7 +3713,7 @@ async def update_pass_through_endpoints(
             path=updated_endpoint.path,
             target=updated_endpoint.target,
             custom_headers=_custom_headers,
-            forward_headers=None,  # Defaults not available in model? assuming None logic handles it
+            forward_headers=updated_endpoint.forward_headers,
             merge_query_params=None,
             dependencies=None,
             cost_per_request=updated_endpoint.cost_per_request,
@@ -3722,7 +3730,7 @@ async def update_pass_through_endpoints(
             path=updated_endpoint.path,
             target=updated_endpoint.target,
             custom_headers=_custom_headers,
-            forward_headers=None,
+            forward_headers=updated_endpoint.forward_headers,
             merge_query_params=None,
             dependencies=None,
             cost_per_request=updated_endpoint.cost_per_request,
@@ -3797,7 +3805,7 @@ async def create_pass_through_endpoints(
             path=created_endpoint.path,
             target=created_endpoint.target,
             custom_headers=_custom_headers,
-            forward_headers=None,
+            forward_headers=created_endpoint.forward_headers,
             merge_query_params=None,
             dependencies=None,
             cost_per_request=created_endpoint.cost_per_request,
@@ -3814,7 +3822,7 @@ async def create_pass_through_endpoints(
             path=created_endpoint.path,
             target=created_endpoint.target,
             custom_headers=_custom_headers,
-            forward_headers=None,
+            forward_headers=created_endpoint.forward_headers,
             merge_query_params=None,
             dependencies=None,
             cost_per_request=created_endpoint.cost_per_request,
