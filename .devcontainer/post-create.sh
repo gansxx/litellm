@@ -14,4 +14,7 @@ uv run --no-sync prisma generate
 echo "[post-create] Installing npm dependencies"
 cd ui/litellm-dashboard && npm ci
 
+echo "[post-create] Installing Codex CLI"
+npm install --global @openai/codex@0.160.1
+
 echo "[post-create] Done"

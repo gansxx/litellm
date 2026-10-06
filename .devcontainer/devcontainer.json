@@ -13,7 +13,7 @@
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	"features": {
 		"ghcr.io/devcontainers/features/node:1": {
-			"version": "lts"
+			"version": "24.14.1"
 		},
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {}
 	},
@@ -35,10 +35,15 @@
 	
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	"forwardPorts": [4000],
+	"runArgs": ["--add-host=host.docker.internal:host-gateway"],
 	
 	"containerEnv": {
 		"LITELLM_LOG": "DEBUG"
 	},
+	"remoteEnv": {
+		"virtual_key": "${localEnv:virtual_key}"
+	},
+	"remoteUser": "root",
 
 	// Use 'portsAttributes' to set default properties for specific forwarded ports. 
 	// More info: https://containers.dev/implementors/json_reference/#port-attributes
